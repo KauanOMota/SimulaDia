@@ -13,7 +13,7 @@
 
   <!-- TOP BAR -->
   <div class="top-bar">
-    <div class="logo">Simula<span>Dia</span></div>
+    <div class="logo" onclick="goHome()" style="cursor:pointer;">Simula<span>Dia</span></div>
     <div class="streak-badge" id="streak-badge" style="display:none;">
       🔥 <span id="streak-count">0</span> dia(s) seguidos
     </div>
@@ -99,7 +99,7 @@
     <div id="review"></div>
 
     <button class="btn-share" id="btn-share" onclick="shareResult()">↗ Compartilhar resultado</button>
-    <button class="btn-redo" onclick="location.reload()">↺ Refazer simulado de hoje</button>
+    <button class="btn-redo">← Voltar ao início</button>
   </div>
 
 </div>
