@@ -237,9 +237,16 @@ function renderResult({ fromCache = false } = {}) {
   document.getElementById('streak-count').textContent = streak;
   document.getElementById('streak-badge').style.display = 'flex';
 
-  // Ocultar "refazer" quando resultado vem do cache — não faz sentido refazer
+  // Botão de voltar ao início — sempre visível
   const btnRedo = document.querySelector('.btn-redo');
-  if (btnRedo) btnRedo.style.display = fromCache ? 'none' : 'flex';
+  if (btnRedo) {
+    btnRedo.style.display = 'flex';
+    btnRedo.textContent = '← Voltar ao início';
+    btnRedo.onclick = () => {
+      document.getElementById('screen-result').style.display = 'none';
+      document.getElementById('screen-intro').style.display = 'block';
+    };
+  }
 
   // Review
   const review = document.getElementById('review');
@@ -306,14 +313,13 @@ function shareResult() {
     });
   }
 
-  if (navigator.share) {
-    navigator.share({ text })
-      .catch(err => {
-        if (err.name !== 'AbortError') fallbackCopy();
-      });
-  } else {
-    fallbackCopy();
-  }
+  fallbackCopy();
+}
+
+function goHome() {
+  document.getElementById('screen-quiz').style.display = 'none';
+  document.getElementById('screen-result').style.display = 'none';
+  document.getElementById('screen-intro').style.display = 'block';
 }
 
 init();
