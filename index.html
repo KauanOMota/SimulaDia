@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SimulaDia — Matemática</title>
+<title>SimulaDia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
@@ -22,21 +22,44 @@
   <!-- ─── INTRO ─── -->
   <div id="screen-intro">
     <div class="hero fade-in">
-      <div class="hero-tag">✦ Matemática · ENEM / Vestibulares</div>
-      <h1>O simulado<br>de <em>hoje</em> te espera.</h1>
-      <p>10 questões reais de vestibulares. Sem cadastro, sem enrolação. Novo simulado todo dia.</p>
+
+      <!-- TABS DE MATÉRIA -->
+      <div class="subject-tabs-wrap">
+        <div class="subject-tabs" id="subject-tabs">
+          <!-- gerado por JS -->
+        </div>
+      </div>
+      <div class="subject-name-line" id="subject-name-line">Matemática</div>
+
+      <!-- INDICADOR legado (mantido para compatibilidade com applySubjectTheme) -->
+      <div class="subject-switcher" id="subject-switcher" style="display:none;">
+        <div class="subject-indicator" id="subject-indicator">
+          <span class="subject-dot" id="subject-dot"></span>
+          <span class="subject-label" id="subject-label"></span>
+        </div>
+      </div>
+
+      <h1 id="hero-title">O simulado<br>de <em>hoje</em> está pronto.</h1>
+      <div class="hero-desc-wrap" id="hero-desc-wrap">
+        <p id="hero-desc">10 questões reais. Sem cadastro. Novo simulado todo dia.</p>
+      </div>
 
       <div class="info-chips">
-        <div class="chip"><span class="dot"></span> 10 questões</div>
         <div class="chip"><span class="dot"></span> Gabarito imediato</div>
+        <div class="chip"><span class="dot"></span> Renova todo dia</div>
         <div class="chip"><span class="dot"></span> Questões reais</div>
       </div>
 
       <div class="date-line" id="date-line"></div>
 
-      <button class="btn-start" onclick="startQuiz()">
+      <button class="btn-start" id="btn-start">
         Começar simulado <span class="arrow">→</span>
       </button>
+
+      <div class="countdown-timer" id="countdown-timer">
+        <span class="cd-label">Novo simulado em</span>
+        <span class="cd-time">00:00:00</span>
+      </div>
     </div>
   </div>
 
@@ -73,7 +96,7 @@
   <!-- ─── RESULT ─── -->
   <div id="screen-result">
     <div class="result-hero fade-in">
-      <div class="result-label">Simulado de hoje — concluído</div>
+      <div class="result-label" id="result-label">Simulado de hoje — concluído</div>
       <div class="result-score">
         <span id="final-score">0</span><span class="denom">/10</span>
       </div>
@@ -104,7 +127,11 @@
 
 </div>
 
-<script src="questions.js"></script>
+<!-- Bancos de questões por matéria -->
+<!-- Futuramente: adicionar questions_lin.js, questions_hum.js, questions_nat.js -->
+<script src="questions_mat.js"></script>
+<script src="questions_ling.js"></script>
+
 <script src="app.js"></script>
 </body>
 </html>

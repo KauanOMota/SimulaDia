@@ -84,13 +84,14 @@ function getDailyQuestions() {
 }
 
 // ─── STORAGE KEYS (isolados por matéria) ───
-function getTodayKey(date) {
+// Sempre usam a data real do dia — quizStartDate nunca influencia as chaves de storage
+function getTodayKey() {
   const key = SUBJECTS[currentSubjectIdx].key;
-  return `sd_result_${key}_` + (date || getSessionDate());
+  return `sd_result_${key}_` + new Date().toISOString().slice(0, 10);
 }
-function getProgressKey(date) {
+function getProgressKey() {
   const key = SUBJECTS[currentSubjectIdx].key;
-  return `sd_progress_${key}_` + (date || getSessionDate());
+  return `sd_progress_${key}_` + new Date().toISOString().slice(0, 10);
 }
 function getStreakKey() {
   return `sd_streak_${SUBJECTS[currentSubjectIdx].key}`;
@@ -105,8 +106,8 @@ function saveTodayResult() {
   };
   localStorage.setItem(getTodayKey(), JSON.stringify(payload));
 }
-function loadTodayResult(date) {
-  try { return JSON.parse(localStorage.getItem(getTodayKey(date))); }
+function loadTodayResult() {
+  try { return JSON.parse(localStorage.getItem(getTodayKey())); }
   catch { return null; }
 }
 
@@ -125,13 +126,13 @@ function saveProgress() {
   localStorage.setItem(getProgressKey(), JSON.stringify(payload));
 }
 // Carrega progresso parcial (simulado em andamento)
-function loadProgress(date) {
-  try { return JSON.parse(localStorage.getItem(getProgressKey(date))); }
+function loadProgress() {
+  try { return JSON.parse(localStorage.getItem(getProgressKey())); }
   catch { return null; }
 }
 // Remove progresso parcial (ao finalizar ou ao trocar de matéria)
-function clearProgress(date) {
-  localStorage.removeItem(getProgressKey(date));
+function clearProgress() {
+  localStorage.removeItem(getProgressKey());
 }
 
 // ─── STREAK (por matéria) ───
@@ -216,10 +217,8 @@ function loadSubjectData() {
   heroDescWrap.classList.remove('hero-content-fade');
   void heroDescWrap.offsetWidth;
 
-  // Sempre usa a data real do dia — ignora quizStartDate que pode estar desatualizado
-  const today = new Date().toISOString().slice(0, 10);
-  const saved = loadTodayResult(today);
-  const progress = loadProgress(today);
+  const saved = loadTodayResult();
+  const progress = loadProgress();
   if (saved) {
     // Simulado já finalizado hoje
     questions = saved.questions;
@@ -285,8 +284,48 @@ function updateDateLine() {
     d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+// ─── CRONÔMETRO DE RENOVAÇÃO ───
+function getSecondsUntilMidnight() {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  return Math.floor((midnight - now) / 1000);
+}
+
+function updateCountdown() {
+  const el = document.getElementById('countdown-timer');
+  if (!el) return;
+  const secs = getSecondsUntilMidnight();
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  const pad = n => String(n).padStart(2, '0');
+  el.querySelector('.cd-time').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+function initCountdown() {
+  updateCountdown();
+  setInterval(updateCountdown, 1000);
+}
+
+function purgeOldStorage() {
+  // Remove resultados e progressos de dias anteriores do localStorage
+  const today = new Date().toISOString().slice(0, 10);
+  const keysToDelete = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k) continue;
+    if ((k.startsWith('sd_result_') || k.startsWith('sd_progress_')) && !k.endsWith(today)) {
+      keysToDelete.push(k);
+    }
+  }
+  keysToDelete.forEach(k => localStorage.removeItem(k));
+}
+
 function init() {
+  purgeOldStorage(); // limpa dados de dias anteriores na inicialização
   updateDateLine();
+  initCountdown();
 
   const savedSubject = parseInt(localStorage.getItem('sd_subject') || '0', 10);
   currentSubjectIdx = isNaN(savedSubject) ? 0 : savedSubject % SUBJECTS.length;
@@ -297,25 +336,29 @@ function init() {
 
   document.getElementById('screen-intro').style.display = 'block';
 
-  // Verifica a cada minuto se o dia virou enquanto o app está aberto
+  // Detecta virada de dia tanto por intervalo quanto por retorno de sleep (visibilitychange)
   let lastKnownDate = new Date().toISOString().slice(0, 10);
-  setInterval(() => {
+
+  function checkDayRollover() {
     const today = new Date().toISOString().slice(0, 10);
     if (today === lastKnownDate) return;
     lastKnownDate = today;
 
-    // Dia virou: descarta quizStartDate fixado, limpa progresso do dia anterior e atualiza
+    // Dia virou: zera quizStartDate e atualiza tela inicial se visível
     quizStartDate = null;
     updateDateLine();
+    updateCountdown(); // atualiza cronômetro imediatamente
 
     const onIntro = document.getElementById('screen-intro').style.display !== 'none';
-    if (onIntro) {
-      // Usuário está na tela inicial — recarrega botão e estado silenciosamente
-      loadSubjectData();
-    }
-    // Se estiver no meio de um quiz ou resultado, não interrompe —
-    // o estado correto será exibido na próxima vez que voltar ao início
-  }, 60_000);
+    if (onIntro) loadSubjectData();
+  }
+
+  setInterval(checkDayRollover, 60_000);
+
+  // visibilitychange cobre o caso de o dispositivo ter dormido entre dias
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkDayRollover();
+  });
 }
 
 function startQuiz() {
@@ -335,18 +378,10 @@ function startQuiz() {
 
 // Restaura simulado em andamento a partir do progresso salvo
 function resumeQuiz() {
-  const today = new Date().toISOString().slice(0, 10);
-  const progress = loadProgress(today);
+  const progress = loadProgress();
   if (!progress) { startQuiz(); return; }
 
-  // Segurança: se o progresso salvo é de outro dia, começa novo simulado
-  if (progress.quizStartDate && progress.quizStartDate !== today) {
-    clearProgress(progress.quizStartDate);
-    startQuiz();
-    return;
-  }
-
-  quizStartDate  = progress.quizStartDate || today;
+  quizStartDate  = progress.quizStartDate || new Date().toISOString().slice(0, 10);
   questions      = progress.questions;
   current        = progress.current;
   answers        = progress.answers;
@@ -623,13 +658,13 @@ function shareResult() {
 }
 
 function goHome() {
-  // Não reseta o estado — o progresso parcial fica salvo no localStorage
-  // para ser restaurado quando o usuário clicar "Continuar simulado"
+  // Zera quizStartDate ao voltar para home — nunca deve influenciar a tela inicial
+  quizStartDate = null;
   document.getElementById('screen-quiz').style.display = 'none';
   document.getElementById('screen-result').style.display = 'none';
   document.getElementById('screen-intro').style.display = 'block';
-  updateDateLine();   // garante que a data exibida está correta ao voltar
-  loadSubjectData();  // sincroniza btn-start com o estado atual
+  updateDateLine();
+  loadSubjectData();
 }
 
 // ─── LEGADO: switchSubject mantido por compatibilidade com botão no HTML ───
