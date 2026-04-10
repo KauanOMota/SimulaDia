@@ -179,8 +179,8 @@ function buildSubjectTabs() {
       if (i === currentSubjectIdx) return;
       currentSubjectIdx = i;
       localStorage.setItem('sd_subject', i);
-      // Ao trocar de matéria, limpa progresso da matéria anterior e reseta estado
-      clearProgress();
+      // Reseta apenas o estado em memória — NÃO limpa o progresso salvo no storage,
+      // para que o usuário possa retomar cada matéria de onde parou ao voltar à tab
       current = 0;
       answers = [];
       sessionStreak = 0;
@@ -571,7 +571,12 @@ function renderResult({ fromCache = false } = {}) {
 
   const s = SUBJECTS[currentSubjectIdx];
   const resultLabelEl = document.getElementById('result-label');
-  if (resultLabelEl) resultLabelEl.textContent = `Simulado de ${s.label} — concluído`;
+  if (resultLabelEl) {
+    const dateStr = new Date(getSessionDate() + 'T12:00:00').toLocaleDateString('pt-BR', {
+      day: 'numeric', month: 'long', year: 'numeric'
+    });
+    resultLabelEl.textContent = `Simulado de ${s.label} — ${dateStr}`;
+  }
 
   const correct = answers.filter(Boolean).length;
   const wrong = answers.length - correct;
@@ -635,7 +640,10 @@ function shareResult() {
 
   const dots = answers.map(a => a ? '🟢' : '🔴').join('');
   const streakLine = streak > 1 ? `\n🔥 ${streak} dias seguidos` : '';
-  const text = `${s.resultLabel}\n${correct}/${total} acertos hoje\n${dots}${streakLine}\nsimuladia.com`;
+  const dateStr = new Date(getSessionDate() + 'T12:00:00').toLocaleDateString('pt-BR', {
+    day: 'numeric', month: 'long', year: 'numeric'
+  });
+  const text = `${s.resultLabel} · ${dateStr}\n${correct}/${total} acertos\n${dots}${streakLine}\nsimuladia.com`;
 
   const btn = document.getElementById('btn-share');
   function markCopied() {
@@ -671,8 +679,6 @@ function goHome() {
 function switchSubject() {
   currentSubjectIdx = (currentSubjectIdx + 1) % SUBJECTS.length;
   localStorage.setItem('sd_subject', currentSubjectIdx);
-  // Limpa progresso parcial da matéria anterior e reseta estado
-  clearProgress();
   current = 0;
   answers = [];
   sessionStreak = 0;
