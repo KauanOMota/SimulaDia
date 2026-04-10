@@ -172,6 +172,7 @@ function getStreakKey() {
 function saveTodayResult() {
   const payload = {
     answers,
+    chosenAnswers,
     questions: questions.map(q => ({
       text: q.text, source: q.source, opts: q.opts, ans: q.ans, expl: q.expl
     }))
@@ -188,6 +189,7 @@ function saveProgress() {
   const payload = {
     current,
     answers,
+    chosenAnswers,
     sessionStreak,
     quizStartDate,
     pendingAnswer, // alternativa marcada mas ainda não avançada
@@ -228,7 +230,7 @@ function updateStreak() {
   return newStreak;
 }
 
-let questions, current, answers, sessionStreak;
+let questions, current, answers, chosenAnswers, sessionStreak;
 let pendingAnswer = null; // índice da alternativa marcada antes de avançar
 // Data capturada no início de cada simulado — evita troca de dia a meia-noite
 let quizStartDate = null;
@@ -255,6 +257,7 @@ function buildSubjectTabs() {
       // para que o usuário possa retomar cada matéria de onde parou ao voltar à tab
       current = 0;
       answers = [];
+      chosenAnswers = [];
       sessionStreak = 0;
       quizStartDate = null;
       buildSubjectTabs();
@@ -270,6 +273,7 @@ function loadSubjectData() {
   questions = getDailyQuestions();
   current = 0;
   answers = [];
+  chosenAnswers = [];
   sessionStreak = 0;
 
   const { streak } = getStreak();
@@ -295,6 +299,7 @@ function loadSubjectData() {
     // Simulado já finalizado hoje
     questions = saved.questions;
     answers = saved.answers;
+    chosenAnswers = saved.chosenAnswers || answers.map(() => null);
     heroP.textContent = 'Você já concluiu o simulado de hoje. Volte amanhã para um novo desafio!';
     btnStart.innerHTML = 'Ver resultado <span class="arrow">→</span>';
     btnStart.onclick = () => {
@@ -438,6 +443,7 @@ function startQuiz() {
   questions = getDailyQuestions();
   current = 0;
   answers = [];
+  chosenAnswers = [];
   sessionStreak = 0;
   clearProgress(); // garante que não há progresso parcial de outro dia
   pendingAnswer = null;
@@ -457,6 +463,7 @@ function resumeQuiz() {
   questions      = progress.questions;
   current        = progress.current;
   answers        = progress.answers;
+  chosenAnswers  = progress.chosenAnswers || progress.answers.map(() => null);
   sessionStreak  = progress.sessionStreak;
   pendingAnswer  = progress.pendingAnswer ?? null;
 
@@ -585,6 +592,7 @@ function selectOpt(idx) {
 
   pendingAnswer = idx; // marca alternativa selecionada antes de avançar
   answers.push(isCorrect);
+  chosenAnswers.push(idx);
   updateProgressDots(current, isCorrect);
 
   if (isCorrect) sessionStreak++;
@@ -681,14 +689,21 @@ function renderResult({ fromCache = false } = {}) {
   review.innerHTML = '';
   questions.forEach((q, i) => {
     const ok = answers[i];
+    const chosen = chosenAnswers ? chosenAnswers[i] : null;
     const div = document.createElement('div');
     div.className = `review-card ${ok ? 'correct-card' : 'wrong'}`;
+
+    const wrongLine = (!ok && chosen !== null && chosen !== undefined)
+      ? `<div class="rc-chosen">Sua resposta: <span class="rc-wrong-ans">${letters[chosen]}) ${q.opts[chosen]}</span></div>`
+      : '';
+
     div.innerHTML = `
       <div class="rc-header">
         <div class="rc-q">${i+1}. ${q.text}</div>
-        <div class="rc-icon">${ok ? '✓' : '✗'}</div>
+        <div class="rc-icon ${ok ? 'rc-icon-correct' : 'rc-icon-wrong'}">${ok ? '✓' : '✗'}</div>
       </div>
-      <div class="rc-ans">Gabarito: <span class="highlight">${letters[q.ans]}) ${q.opts[q.ans]}</span></div>
+      ${wrongLine}
+      <div class="rc-ans">Gabarito: <span class="rc-correct-ans">${letters[q.ans]}) ${q.opts[q.ans]}</span></div>
       <div class="rc-expl">${q.expl}</div>
     `;
     review.appendChild(div);
@@ -753,6 +768,7 @@ function switchSubject() {
   localStorage.setItem('sd_subject', currentSubjectIdx);
   current = 0;
   answers = [];
+  chosenAnswers = [];
   sessionStreak = 0;
   quizStartDate = null;
   buildSubjectTabs();

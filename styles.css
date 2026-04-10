@@ -809,3 +809,21 @@ body::after {
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
 }
+
+/* ─── REVIEW CARD: resposta escolhida vs gabarito ─── */
+.rc-icon-correct { color: var(--green); }
+.rc-icon-wrong   { color: var(--red); }
+
+.rc-chosen {
+  font-size: 12.5px;
+  color: var(--text3);
+  margin-bottom: 3px;
+}
+.rc-wrong-ans {
+  color: var(--red);
+  font-weight: 600;
+}
+.rc-correct-ans {
+  color: var(--green);
+  font-weight: 500;
+}
