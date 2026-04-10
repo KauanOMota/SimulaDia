@@ -66,19 +66,33 @@ function getBank() {
   return [];
 }
 
-// ─── GERADOR DE QUESTÕES SEM REPETIÇÃO ───
-// Mantém uma fila de índices embaralhados no localStorage por matéria.
-// Cada dia consome os próximos 10 da fila. Quando a fila tem menos de 10,
-// gera nova rodada embaralhada evitando repetir as últimas da rodada anterior.
+// ─── GERADOR DE QUESTÕES DETERMINÍSTICO E UNIVERSAL ───
+//
+// Princípio: a seleção do dia é calculada SOMENTE a partir de
+// (data + matéria + banco), sem nenhum estado local. Qualquer
+// dispositivo no mesmo dia obtém exatamente as mesmas questões.
+//
+// Como funciona:
+//   1. Uma permutação FIXA de todos os índices do banco é gerada
+//      com um seed constante derivado apenas da matéria e do tamanho
+//      do banco — nunca de Date.now() ou de dados locais.
+//   2. O "dayIndex" é o número de dias desde uma época fixa (2025-01-01).
+//   3. A janela do dia = permutação[ (dayIndex * 10) % bankSize ... +10 ]
+//      usando round-robin circular — avança 10 posições por dia e reinicia
+//      automaticamente quando chega ao fim, sem nunca repetir dentro de
+//      uma rodada completa (bankSize / 10 dias).
+//
+// Resultado: banco de 80 questões → 8 dias sem repetição, depois recomeça.
+// Banco de 100 → 10 dias. Completamente sem estado — sem localStorage.
 
-function getQueueKey() {
-  return 'sd_queue_' + SUBJECTS[currentSubjectIdx].key;
-}
+// Época fixa de referência (não muda nunca)
+const EPOCH = new Date('2025-01-01T00:00:00Z').getTime();
 
-// LCG determinístico — embaralha array com seed numérico
+// LCG determinístico — seed numérico → permutação estável
 function seededShuffle(arr, seed) {
   const a = [...arr];
   let s = seed | 0;
+  if (s === 0) s = 1;
   for (let i = a.length - 1; i > 0; i--) {
     s = (Math.imul(s, 1664525) + 1013904223) | 0;
     const j = Math.abs(s) % (i + 1);
@@ -87,72 +101,48 @@ function seededShuffle(arr, seed) {
   return a;
 }
 
-// Gera nova rodada tentando evitar que as primeiras 10 repitam
-// o tail (últimas questões da rodada anterior)
-function newRound(bankSize, tailIndices) {
-  const baseSeed = Date.now();
-  const avoidCount = Math.min(tailIndices.length, Math.floor(bankSize / 2));
-  const tail = new Set(tailIndices.slice(-avoidCount));
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const shuffled = seededShuffle([...Array(bankSize).keys()], baseSeed + attempt);
-    const overlap = shuffled.slice(0, 10).filter(x => tail.has(x)).length;
-    if (overlap === 0) return shuffled;
-  }
-  // fallback: aceita qualquer embaralhamento
-  return seededShuffle([...Array(bankSize).keys()], baseSeed);
+// Retorna a permutação fixa do banco para a matéria atual.
+// O seed usa apenas o índice da matéria e o tamanho do banco —
+// idêntico em qualquer dispositivo.
+function getFixedPermutation(bankSize) {
+  const subjectIdx = currentSubjectIdx;
+  // Seed primo arbitrário, único por matéria e tamanho do banco
+  const seed = 0x5EED0000 ^ (subjectIdx * 0x9E3779B9) ^ (bankSize * 0x6B43A9);
+  return seededShuffle([...Array(bankSize).keys()], seed);
 }
 
-function loadQueue() {
-  try { return JSON.parse(localStorage.getItem(getQueueKey())) || null; }
-  catch { return null; }
-}
-function saveQueue(q) {
-  localStorage.setItem(getQueueKey(), JSON.stringify(q));
+// Número de dias completos desde a época, em UTC — igual em todo o mundo
+function getDayIndex() {
+  const nowUTC = Date.now();
+  return Math.floor((nowUTC - EPOCH) / 86400000);
 }
 
 function getDailyQuestions() {
   const bank = getBank();
   if (!bank.length) return [];
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const subjectKey = SUBJECTS[currentSubjectIdx].key;
-  const dayToken = todayStr + '_' + subjectKey;
-
-  // Carrega ou inicializa a fila persistente por matéria
-  let queue = loadQueue();
-
-  // Reinicia se o banco mudou de tamanho (novas questões adicionadas)
-  if (!queue || queue.bankSize !== bank.length) {
-    queue = { bankSize: bank.length, indices: [], tail: [], usedToday: null, todayIndices: [] };
-  }
-
-  // Idempotente: se já escolhemos questões hoje, retorna as mesmas
-  if (queue.usedToday === dayToken && queue.todayIndices && queue.todayIndices.length === 10) {
-    return queue.todayIndices.map(i => bank[i]);
-  }
-
-  // Se há resultado finalizado ou progresso parcial de hoje, usa as questões deles
-  // sem consumir a fila (a fila já foi consumida quando esse simulado começou)
+  // Prioridade: se já há resultado ou progresso salvo hoje, usa as questões deles
+  // (garante consistência dentro do dia mesmo que o banco mude)
   const savedResult = loadTodayResult();
-  if (savedResult && savedResult.questions) return savedResult.questions;
+  if (savedResult && savedResult.questions && savedResult.questions.length) {
+    return savedResult.questions;
+  }
   const savedProgress = loadProgress();
-  if (savedProgress && savedProgress.questions) return savedProgress.questions;
-
-  // Abastece a fila se necessário
-  if (queue.indices.length < 10) {
-    const newIndices = newRound(bank.length, queue.tail || []);
-    // Em bancos pequenos (< 20), concatena em vez de substituir para não perder restantes
-    queue.indices = [...queue.indices, ...newIndices].slice(0, bank.length);
+  if (savedProgress && savedProgress.questions && savedProgress.questions.length) {
+    return savedProgress.questions;
   }
 
-  // Consome as próximas 10
-  const todayIndices = queue.indices.splice(0, 10);
-  queue.tail = todayIndices;
-  queue.usedToday = dayToken;
-  queue.todayIndices = todayIndices;
+  const perm = getFixedPermutation(bank.length);
+  const dayIdx = getDayIndex();
+  const start = (dayIdx * 10) % bank.length;
 
-  saveQueue(queue);
-  return todayIndices.map(i => bank[i]);
+  // Fatia circular de 10 elementos
+  const indices = [];
+  for (let i = 0; i < 10; i++) {
+    indices.push(perm[(start + i) % bank.length]);
+  }
+
+  return indices.map(i => bank[i]);
 }
 
 // ─── STORAGE KEYS (isolados por matéria) ───
