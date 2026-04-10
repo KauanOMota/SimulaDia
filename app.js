@@ -66,21 +66,93 @@ function getBank() {
   return [];
 }
 
+// ─── GERADOR DE QUESTÕES SEM REPETIÇÃO ───
+// Mantém uma fila de índices embaralhados no localStorage por matéria.
+// Cada dia consome os próximos 10 da fila. Quando a fila tem menos de 10,
+// gera nova rodada embaralhada evitando repetir as últimas da rodada anterior.
+
+function getQueueKey() {
+  return 'sd_queue_' + SUBJECTS[currentSubjectIdx].key;
+}
+
+// LCG determinístico — embaralha array com seed numérico
+function seededShuffle(arr, seed) {
+  const a = [...arr];
+  let s = seed | 0;
+  for (let i = a.length - 1; i > 0; i--) {
+    s = (Math.imul(s, 1664525) + 1013904223) | 0;
+    const j = Math.abs(s) % (i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Gera nova rodada tentando evitar que as primeiras 10 repitam
+// o tail (últimas questões da rodada anterior)
+function newRound(bankSize, tailIndices) {
+  const baseSeed = Date.now();
+  const avoidCount = Math.min(tailIndices.length, Math.floor(bankSize / 2));
+  const tail = new Set(tailIndices.slice(-avoidCount));
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const shuffled = seededShuffle([...Array(bankSize).keys()], baseSeed + attempt);
+    const overlap = shuffled.slice(0, 10).filter(x => tail.has(x)).length;
+    if (overlap === 0) return shuffled;
+  }
+  // fallback: aceita qualquer embaralhamento
+  return seededShuffle([...Array(bankSize).keys()], baseSeed);
+}
+
+function loadQueue() {
+  try { return JSON.parse(localStorage.getItem(getQueueKey())) || null; }
+  catch { return null; }
+}
+function saveQueue(q) {
+  localStorage.setItem(getQueueKey(), JSON.stringify(q));
+}
+
 function getDailyQuestions() {
   const bank = getBank();
   if (!bank.length) return [];
-  const today = new Date();
-  // Inclui a matéria no seed para que cada área tenha sequência diferente
-  const subjectSeed = currentSubjectIdx * 999983;
-  const seed = today.getFullYear() * 10000 + (today.getMonth()+1) * 100 + today.getDate() + subjectSeed;
-  const indices = [...Array(bank.length).keys()];
-  let s = seed;
-  for (let i = indices.length - 1; i > 0; i--) {
-    s = (Math.imul(s, 1664525) + 1013904223) | 0;
-    const j = Math.abs(s) % (i + 1);
-    [indices[i], indices[j]] = [indices[j], indices[i]];
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const subjectKey = SUBJECTS[currentSubjectIdx].key;
+  const dayToken = todayStr + '_' + subjectKey;
+
+  // Carrega ou inicializa a fila persistente por matéria
+  let queue = loadQueue();
+
+  // Reinicia se o banco mudou de tamanho (novas questões adicionadas)
+  if (!queue || queue.bankSize !== bank.length) {
+    queue = { bankSize: bank.length, indices: [], tail: [], usedToday: null, todayIndices: [] };
   }
-  return indices.slice(0, 10).map(i => bank[i]);
+
+  // Idempotente: se já escolhemos questões hoje, retorna as mesmas
+  if (queue.usedToday === dayToken && queue.todayIndices && queue.todayIndices.length === 10) {
+    return queue.todayIndices.map(i => bank[i]);
+  }
+
+  // Se há resultado finalizado ou progresso parcial de hoje, usa as questões deles
+  // sem consumir a fila (a fila já foi consumida quando esse simulado começou)
+  const savedResult = loadTodayResult();
+  if (savedResult && savedResult.questions) return savedResult.questions;
+  const savedProgress = loadProgress();
+  if (savedProgress && savedProgress.questions) return savedProgress.questions;
+
+  // Abastece a fila se necessário
+  if (queue.indices.length < 10) {
+    const newIndices = newRound(bank.length, queue.tail || []);
+    // Em bancos pequenos (< 20), concatena em vez de substituir para não perder restantes
+    queue.indices = [...queue.indices, ...newIndices].slice(0, bank.length);
+  }
+
+  // Consome as próximas 10
+  const todayIndices = queue.indices.splice(0, 10);
+  queue.tail = todayIndices;
+  queue.usedToday = dayToken;
+  queue.todayIndices = todayIndices;
+
+  saveQueue(queue);
+  return todayIndices.map(i => bank[i]);
 }
 
 // ─── STORAGE KEYS (isolados por matéria) ───
