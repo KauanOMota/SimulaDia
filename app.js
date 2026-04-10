@@ -1,25 +1,101 @@
 // ─── LÓGICA PRINCIPAL ───
-// Arquivo: app.js
-// Contém toda a lógica do quiz: seleção diária, streak, navegação e resultado.
+// app.js — quiz engine com multi-matéria, tabs e banco isolado por área
 
+// ─── SUBJECTS ───
+const SUBJECTS = [
+  {
+    key: 'mat',
+    label: 'Matemática',
+    labelShort: 'Mat',
+    themeClass: 'subject-mat',
+    accentColor: '#818CF8',
+    heroTitle: 'O simulado<br>de <em>hoje</em> está pronto.',
+    heroDesc: '10 questões reais. Sem cadastro. Novo simulado todo dia.',
+    resultLabel: 'SimulaDia — Matemática',
+    bankFile: 'questions_mat.js',
+    bankVar: 'BANK_MAT',
+  },
+  {
+    key: 'lin',
+    label: 'Linguagens',
+    labelShort: 'Lin',
+    themeClass: 'subject-lin',
+    accentColor: '#FB923C',
+    heroTitle: 'O simulado<br>de <em>hoje</em> está pronto.',
+    heroDesc: '10 questões reais. Sem cadastro. Novo simulado todo dia.',
+    resultLabel: 'SimulaDia — Linguagens',
+    bankFile: 'questions_lin.js',
+    bankVar: 'BANK_LING',
+  },
+  {
+    key: 'hum',
+    label: 'Humanas',
+    labelShort: 'Hum',
+    themeClass: 'subject-hum',
+    accentColor: '#34D399',
+    heroTitle: 'O simulado<br>de <em>hoje</em> está pronto.',
+    heroDesc: '10 questões reais. Sem cadastro. Novo simulado todo dia.',
+    resultLabel: 'SimulaDia — Ciências Humanas',
+    bankFile: 'questions_hum.js',
+    bankVar: 'BANK_HUM',
+  },
+  {
+    key: 'nat',
+    label: 'Natureza',
+    labelShort: 'Nat',
+    themeClass: 'subject-nat',
+    accentColor: '#38BDF8',
+    heroTitle: 'O simulado<br>de <em>hoje</em> está pronto.',
+    heroDesc: '10 questões reais. Sem cadastro. Novo simulado todo dia.',
+    resultLabel: 'SimulaDia — Ciências da Natureza',
+    bankFile: 'questions_nat.js',
+    bankVar: 'BANK_NAT',
+  },
+];
+
+let currentSubjectIdx = 0;
+
+// ─── BANCO DE QUESTÕES ───
+// Retorna o BANK da matéria atual, com fallback para BANK (legado)
+function getBank() {
+  const s = SUBJECTS[currentSubjectIdx];
+  // Tenta a variável específica da matéria (ex: BANK_MAT)
+  if (typeof window[s.bankVar] !== 'undefined') return window[s.bankVar];
+  // Fallback: usa BANK global (compatibilidade com questions.js legado)
+  if (typeof BANK !== 'undefined') return BANK;
+  return [];
+}
 
 function getDailyQuestions() {
+  const bank = getBank();
+  if (!bank.length) return [];
   const today = new Date();
-  const seed = today.getFullYear() * 10000 + (today.getMonth()+1) * 100 + today.getDate();
-  const indices = [...Array(BANK.length).keys()];
+  // Inclui a matéria no seed para que cada área tenha sequência diferente
+  const subjectSeed = currentSubjectIdx * 999983;
+  const seed = today.getFullYear() * 10000 + (today.getMonth()+1) * 100 + today.getDate() + subjectSeed;
+  const indices = [...Array(bank.length).keys()];
   let s = seed;
   for (let i = indices.length - 1; i > 0; i--) {
     s = (Math.imul(s, 1664525) + 1013904223) | 0;
     const j = Math.abs(s) % (i + 1);
     [indices[i], indices[j]] = [indices[j], indices[i]];
   }
-  return indices.slice(0, 10).map(i => BANK[i]);
+  return indices.slice(0, 10).map(i => bank[i]);
 }
 
-// ─── RESULTADO DO DIA ───
-function getTodayKey() {
-  return 'sd_result_' + new Date().toISOString().slice(0, 10);
+// ─── STORAGE KEYS (isolados por matéria) ───
+function getTodayKey(date) {
+  const key = SUBJECTS[currentSubjectIdx].key;
+  return `sd_result_${key}_` + (date || getSessionDate());
 }
+function getProgressKey(date) {
+  const key = SUBJECTS[currentSubjectIdx].key;
+  return `sd_progress_${key}_` + (date || getSessionDate());
+}
+function getStreakKey() {
+  return `sd_streak_${SUBJECTS[currentSubjectIdx].key}`;
+}
+
 function saveTodayResult() {
   const payload = {
     answers,
@@ -29,15 +105,39 @@ function saveTodayResult() {
   };
   localStorage.setItem(getTodayKey(), JSON.stringify(payload));
 }
-function loadTodayResult() {
-  try { return JSON.parse(localStorage.getItem(getTodayKey())); }
+function loadTodayResult(date) {
+  try { return JSON.parse(localStorage.getItem(getTodayKey(date))); }
   catch { return null; }
 }
 
-// ─── STREAK ───
+// Salva progresso parcial após cada resposta
+function saveProgress() {
+  const payload = {
+    current,
+    answers,
+    sessionStreak,
+    quizStartDate,
+    pendingAnswer, // alternativa marcada mas ainda não avançada
+    questions: questions.map(q => ({
+      text: q.text, source: q.source, opts: q.opts, ans: q.ans, expl: q.expl
+    }))
+  };
+  localStorage.setItem(getProgressKey(), JSON.stringify(payload));
+}
+// Carrega progresso parcial (simulado em andamento)
+function loadProgress(date) {
+  try { return JSON.parse(localStorage.getItem(getProgressKey(date))); }
+  catch { return null; }
+}
+// Remove progresso parcial (ao finalizar ou ao trocar de matéria)
+function clearProgress(date) {
+  localStorage.removeItem(getProgressKey(date));
+}
+
+// ─── STREAK (por matéria) ───
 function getStreak() {
-  const today = new Date().toISOString().slice(0, 10);
-  const data = JSON.parse(localStorage.getItem('sd_streak') || '{}');
+  const today = new Date().toISOString().slice(0, 10); // streak sempre usa data real
+  const data = JSON.parse(localStorage.getItem(getStreakKey()) || '{}');
   return { streak: data.streak || 0, last: data.last || null, today };
 }
 function updateStreak() {
@@ -51,55 +151,269 @@ function updateStreak() {
   } else {
     newStreak = 1;
   }
-  localStorage.setItem('sd_streak', JSON.stringify({ streak: newStreak, last: today }));
+  localStorage.setItem(getStreakKey(), JSON.stringify({ streak: newStreak, last: today }));
   return newStreak;
 }
 
 let questions, current, answers, sessionStreak;
+let pendingAnswer = null; // índice da alternativa marcada antes de avançar
+// Data capturada no início de cada simulado — evita troca de dia a meia-noite
+let quizStartDate = null;
+function getSessionDate() {
+  // Durante um simulado ativo, usa a data em que ele começou
+  // Na tela inicial (fora de um simulado), usa a data atual
+  return quizStartDate || new Date().toISOString().slice(0, 10);
+}
 
-function init() {
-  const d = new Date();
-  document.getElementById('date-line').textContent =
-    d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+// ─── TABS DE MATÉRIA ───
+function buildSubjectTabs() {
+  const container = document.getElementById('subject-tabs');
+  container.innerHTML = '';
+  SUBJECTS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'stab' + (i === currentSubjectIdx ? ' active' : '');
+    btn.textContent = s.labelShort;
+    btn.dataset.idx = i;
+    btn.onclick = () => {
+      if (i === currentSubjectIdx) return;
+      currentSubjectIdx = i;
+      localStorage.setItem('sd_subject', i);
+      // Ao trocar de matéria, limpa progresso da matéria anterior e reseta estado
+      clearProgress();
+      current = 0;
+      answers = [];
+      sessionStreak = 0;
+      quizStartDate = null;
+      buildSubjectTabs();
+      applySubjectTheme(i, true);
+      loadSubjectData();
+    };
+    container.appendChild(btn);
+  });
+}
 
-  const { streak } = getStreak();
-  if (streak > 0) {
-    document.getElementById('streak-count').textContent = streak;
-    document.getElementById('streak-badge').style.display = 'flex';
-  }
-
+// ─── CARREGAR DADOS DA MATÉRIA ───
+function loadSubjectData() {
   questions = getDailyQuestions();
   current = 0;
   answers = [];
   sessionStreak = 0;
 
-  // Checar se já concluiu hoje
-  const saved = loadTodayResult();
-  if (saved) {
-    questions = saved.questions;
-    answers = saved.answers;
-    // Trocar subtítulo do hero
-    const heroP = document.querySelector('.hero p');
-    if (heroP) heroP.textContent = 'Você já concluiu o simulado de hoje. Volte amanhã para um novo desafio!';
-    // Substituir botão de começar por "ver resultado de hoje"
-    const btnStart = document.querySelector('.btn-start');
-    if (btnStart) {
-      btnStart.textContent = 'Ver resultado de hoje →';
-      btnStart.onclick = () => {
-        document.getElementById('screen-intro').style.display = 'none';
-        renderResult({ fromCache: true });
-      };
-    }
+  const { streak } = getStreak();
+  if (streak > 0) {
+    document.getElementById('streak-count').textContent = streak;
+    document.getElementById('streak-badge').style.display = 'flex';
+  } else {
+    document.getElementById('streak-badge').style.display = 'none';
   }
 
+  const heroP = document.getElementById('hero-desc');
+  const btnStart = document.getElementById('btn-start');
+  const s = SUBJECTS[currentSubjectIdx];
+
+  // Fade out content, swap, fade in — so layout stays put
+  const heroDescWrap = document.getElementById('hero-desc-wrap') || heroP.parentElement;
+  heroDescWrap.classList.remove('hero-content-fade');
+  void heroDescWrap.offsetWidth;
+
+  // Sempre usa a data real do dia — ignora quizStartDate que pode estar desatualizado
+  const today = new Date().toISOString().slice(0, 10);
+  const saved = loadTodayResult(today);
+  const progress = loadProgress(today);
+  if (saved) {
+    // Simulado já finalizado hoje
+    questions = saved.questions;
+    answers = saved.answers;
+    heroP.textContent = 'Você já concluiu o simulado de hoje. Volte amanhã para um novo desafio!';
+    btnStart.innerHTML = 'Ver resultado <span class="arrow">→</span>';
+    btnStart.onclick = () => {
+      document.getElementById('screen-intro').style.display = 'none';
+      renderResult({ fromCache: true });
+    };
+  } else if (progress) {
+    // Simulado em andamento — progresso parcial salvo (validado como sendo de hoje)
+    const done = progress.answers.length;
+    const total = progress.questions.length;
+    heroP.textContent = `Você está na questão ${done + 1} de ${total}. Continue de onde parou!`;
+    btnStart.innerHTML = 'Continuar simulado <span class="arrow">→</span>';
+    btnStart.onclick = resumeQuiz;
+  } else {
+    heroP.textContent = s.heroDesc;
+    btnStart.innerHTML = 'Começar simulado <span class="arrow">→</span>';
+    btnStart.onclick = startQuiz;
+  }
+
+  heroDescWrap.classList.add('hero-content-fade');
+}
+
+// ─── APLICAR TEMA ───
+function applySubjectTheme(idx, animate = false) {
+  const s = SUBJECTS[idx];
+
+  SUBJECTS.forEach(sub => document.body.classList.remove(sub.themeClass));
+  document.body.classList.add(s.themeClass);
+
+  // Atualiza indicador legado (ainda no DOM)
+  const labelEl = document.getElementById('subject-label');
+  if (labelEl) labelEl.textContent = s.label;
+
+  // Atualiza nome completo da matéria abaixo das tabs
+  const nameLineEl = document.getElementById('subject-name-line');
+  if (nameLineEl) nameLineEl.textContent = s.label;
+
+  // Cor do "hoje" no título
+  const heroTitle = document.getElementById('hero-title');
+
+  if (animate) {
+    heroTitle.classList.remove('subject-switch-anim');
+    void heroTitle.offsetWidth;
+    heroTitle.innerHTML = s.heroTitle;
+    heroTitle.classList.add('subject-switch-anim');
+  } else {
+    heroTitle.innerHTML = s.heroTitle;
+  }
+
+  // Aplica a cor do "hoje" via CSS var
+  document.documentElement.style.setProperty('--subject-accent', s.accentColor);
+
+  localStorage.setItem('sd_subject', idx);
+}
+
+function updateDateLine() {
+  const d = new Date();
+  document.getElementById('date-line').textContent =
+    d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function init() {
+  updateDateLine();
+
+  const savedSubject = parseInt(localStorage.getItem('sd_subject') || '0', 10);
+  currentSubjectIdx = isNaN(savedSubject) ? 0 : savedSubject % SUBJECTS.length;
+
+  buildSubjectTabs();
+  applySubjectTheme(currentSubjectIdx, false);
+  loadSubjectData();
+
   document.getElementById('screen-intro').style.display = 'block';
+
+  // Verifica a cada minuto se o dia virou enquanto o app está aberto
+  let lastKnownDate = new Date().toISOString().slice(0, 10);
+  setInterval(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (today === lastKnownDate) return;
+    lastKnownDate = today;
+
+    // Dia virou: descarta quizStartDate fixado, limpa progresso do dia anterior e atualiza
+    quizStartDate = null;
+    updateDateLine();
+
+    const onIntro = document.getElementById('screen-intro').style.display !== 'none';
+    if (onIntro) {
+      // Usuário está na tela inicial — recarrega botão e estado silenciosamente
+      loadSubjectData();
+    }
+    // Se estiver no meio de um quiz ou resultado, não interrompe —
+    // o estado correto será exibido na próxima vez que voltar ao início
+  }, 60_000);
 }
 
 function startQuiz() {
+  quizStartDate = new Date().toISOString().slice(0, 10);
+  questions = getDailyQuestions();
+  current = 0;
+  answers = [];
+  sessionStreak = 0;
+  clearProgress(); // garante que não há progresso parcial de outro dia
+  pendingAnswer = null;
+  document.getElementById('prog').style.width = '0%';
   document.getElementById('screen-intro').style.display = 'none';
   document.getElementById('screen-quiz').style.display = 'block';
   buildProgressDots();
   showQ();
+}
+
+// Restaura simulado em andamento a partir do progresso salvo
+function resumeQuiz() {
+  const today = new Date().toISOString().slice(0, 10);
+  const progress = loadProgress(today);
+  if (!progress) { startQuiz(); return; }
+
+  // Segurança: se o progresso salvo é de outro dia, começa novo simulado
+  if (progress.quizStartDate && progress.quizStartDate !== today) {
+    clearProgress(progress.quizStartDate);
+    startQuiz();
+    return;
+  }
+
+  quizStartDate  = progress.quizStartDate || today;
+  questions      = progress.questions;
+  current        = progress.current;
+  answers        = progress.answers;
+  sessionStreak  = progress.sessionStreak;
+  pendingAnswer  = progress.pendingAnswer ?? null;
+
+  document.getElementById('screen-intro').style.display = 'none';
+  document.getElementById('screen-quiz').style.display = 'block';
+
+  // Reconstrói os dots e marca os já respondidos
+  buildProgressDots();
+  answers.forEach((correct, i) => updateProgressDots(i, correct));
+
+  // Restaura barra de progresso
+  document.getElementById('prog').style.width = (current / questions.length * 100) + '%';
+
+  // Restaura streak visual
+  updateSessionStreak();
+
+  if (pendingAnswer !== null) {
+    // Usuário já havia respondido esta questão mas não avançou — restaura estado visual
+    showQAnswered(pendingAnswer);
+  } else {
+    showQ();
+  }
+}
+
+// Renderiza a questão atual já respondida (estado pós-seleção, pré-avanço)
+function showQAnswered(selectedIdx) {
+  const q = questions[current];
+  const pct = (current / questions.length) * 100;
+  document.getElementById('prog').style.width = pct + '%';
+  document.getElementById('q-counter').textContent = `Questão ${current+1} de ${questions.length}`;
+  document.getElementById('q-source').textContent = q.source;
+  document.getElementById('q-text').textContent = q.text;
+
+  const qa = document.getElementById('q-area');
+  qa.classList.remove('fade-in');
+  void qa.offsetWidth;
+  qa.classList.add('fade-in');
+
+  const letters = ['A','B','C','D','E'];
+  const opts = document.getElementById('options');
+  opts.innerHTML = '';
+  const isCorrect = selectedIdx === q.ans;
+  q.opts.forEach((o, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'opt';
+    btn.disabled = true;
+    btn.onclick = null;
+    if (i === selectedIdx) btn.classList.add(isCorrect ? 'selected-correct' : 'selected-wrong');
+    if (!isCorrect && i === q.ans) btn.classList.add('show-correct');
+    btn.innerHTML = `<span class="opt-letter">${letters[i]}</span><span>${o}</span>`;
+    opts.appendChild(btn);
+  });
+
+  const fb = document.getElementById('feedback-box');
+  fb.style.display = 'block';
+  fb.className = 'feedback-box ' + (isCorrect ? 'correct' : 'wrong');
+  document.getElementById('feedback-label').textContent = isCorrect ? '✓ Correto!' : '✗ Errado';
+  document.getElementById('feedback-answer').textContent = isCorrect
+    ? '' : `Resposta correta: ${letters[q.ans]}) ${q.opts[q.ans]}`;
+  document.getElementById('feedback-expl').textContent = q.expl;
+
+  const btn = document.getElementById('btn-next');
+  btn.style.display = 'block';
+  btn.textContent = current < questions.length - 1 ? 'Próxima questão →' : 'Ver resultado →';
 }
 
 function buildProgressDots() {
@@ -121,6 +435,7 @@ function updateProgressDots(idx, correct) {
 }
 
 function showQ() {
+  pendingAnswer = null; // limpa alternativa pendente ao entrar em nova questão
   const q = questions[current];
   const pct = (current / questions.length) * 100;
   document.getElementById('prog').style.width = pct + '%';
@@ -128,13 +443,11 @@ function showQ() {
   document.getElementById('q-source').textContent = q.source;
   document.getElementById('q-text').textContent = q.text;
 
-  // Reset feedback
   const fb = document.getElementById('feedback-box');
   fb.style.display = 'none';
   fb.className = 'feedback-box';
   document.getElementById('btn-next').style.display = 'none';
 
-  // Animate q-area
   const qa = document.getElementById('q-area');
   qa.classList.remove('fade-in');
   void qa.offsetWidth;
@@ -150,6 +463,8 @@ function showQ() {
     btn.onclick = () => selectOpt(i);
     opts.appendChild(btn);
   });
+
+  saveProgress(); // persiste current atualizado (mesmo sem resposta ainda)
 }
 
 function selectOpt(idx) {
@@ -161,18 +476,15 @@ function selectOpt(idx) {
   allOpts[idx].classList.add(isCorrect ? 'selected-correct' : 'selected-wrong');
   if (!isCorrect) allOpts[q.ans].classList.add('show-correct');
 
+  pendingAnswer = idx; // marca alternativa selecionada antes de avançar
   answers.push(isCorrect);
   updateProgressDots(current, isCorrect);
 
-  // Session streak
-  if (isCorrect) {
-    sessionStreak++;
-  } else {
-    sessionStreak = 0;
-  }
+  if (isCorrect) sessionStreak++;
+  else sessionStreak = 0;
   updateSessionStreak();
+  saveProgress(); // persiste resposta e pendingAnswer
 
-  // Feedback
   const fb = document.getElementById('feedback-box');
   fb.style.display = 'block';
   fb.className = 'feedback-box ' + (isCorrect ? 'correct' : 'wrong');
@@ -211,17 +523,20 @@ function nextQ() {
 
 function getMsg(pct) {
   if (pct === 100) return '🏆 Perfeito! Mandou muito!';
-  if (pct >= 80) return '🎯 Ótimo desempenho! Quase lá.';
-  if (pct >= 60) return '📈 Bom resultado. Continue assim.';
-  if (pct >= 40) return '💪 Ainda há espaço para crescer.';
+  if (pct >= 80)  return '🎯 Ótimo desempenho! Quase lá.';
+  if (pct >= 60)  return '📈 Bom resultado. Continue assim.';
+  if (pct >= 40)  return '💪 Ainda há espaço para crescer.';
   return '📚 Revise os conteúdos e tente amanhã.';
 }
 
-// ─── RENDERIZAR RESULTADO ───
-// fromCache: true = resultado carregado do storage (não mostra botão de refazer)
 function renderResult({ fromCache = false } = {}) {
   document.getElementById('screen-quiz').style.display = 'none';
+  document.getElementById('screen-intro').style.display = 'none';
   document.getElementById('screen-result').style.display = 'block';
+
+  const s = SUBJECTS[currentSubjectIdx];
+  const resultLabelEl = document.getElementById('result-label');
+  if (resultLabelEl) resultLabelEl.textContent = `Simulado de ${s.label} — concluído`;
 
   const correct = answers.filter(Boolean).length;
   const wrong = answers.length - correct;
@@ -237,18 +552,18 @@ function renderResult({ fromCache = false } = {}) {
   document.getElementById('streak-count').textContent = streak;
   document.getElementById('streak-badge').style.display = 'flex';
 
-  // Botão de voltar ao início — sempre visível
   const btnRedo = document.querySelector('.btn-redo');
   if (btnRedo) {
     btnRedo.style.display = 'flex';
     btnRedo.textContent = '← Voltar ao início';
     btnRedo.onclick = () => {
+      quizStartDate = null; // libera a data fixada ao voltar do resultado
       document.getElementById('screen-result').style.display = 'none';
       document.getElementById('screen-intro').style.display = 'block';
+      loadSubjectData(); // garante que btn-start reflita o estado correto
     };
   }
 
-  // Review
   const review = document.getElementById('review');
   const letters = ['A','B','C','D','E'];
   review.innerHTML = '';
@@ -269,14 +584,11 @@ function renderResult({ fromCache = false } = {}) {
 }
 
 function showResult() {
-  // Salvar resultado antes de renderizar
+  clearProgress(); // simulado concluído — descarta progresso parcial
   saveTodayResult();
-
-  // Atualizar streak
   const streak = updateStreak();
   document.getElementById('streak-count').textContent = streak;
   document.getElementById('streak-badge').style.display = 'flex';
-
   renderResult({ fromCache: false });
 }
 
@@ -284,14 +596,13 @@ function shareResult() {
   const correct = answers.filter(Boolean).length;
   const total = answers.length;
   const { streak } = getStreak();
+  const s = SUBJECTS[currentSubjectIdx];
 
   const dots = answers.map(a => a ? '🟢' : '🔴').join('');
   const streakLine = streak > 1 ? `\n🔥 ${streak} dias seguidos` : '';
-
-  const text = `SimulaDia — Matemática\n${correct}/${total} acertos hoje\n${dots}${streakLine}\nsimuladia.com`;
+  const text = `${s.resultLabel}\n${correct}/${total} acertos hoje\n${dots}${streakLine}\nsimuladia.com`;
 
   const btn = document.getElementById('btn-share');
-
   function markCopied() {
     btn.textContent = '✓ Copiado!';
     btn.classList.add('copied');
@@ -300,26 +611,40 @@ function shareResult() {
       btn.classList.remove('copied');
     }, 2500);
   }
-
-  function fallbackCopy() {
-    navigator.clipboard.writeText(text).then(markCopied).catch(() => {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      markCopied();
-    });
-  }
-
-  fallbackCopy();
+  navigator.clipboard.writeText(text).then(markCopied).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    markCopied();
+  });
 }
 
 function goHome() {
+  // Não reseta o estado — o progresso parcial fica salvo no localStorage
+  // para ser restaurado quando o usuário clicar "Continuar simulado"
   document.getElementById('screen-quiz').style.display = 'none';
   document.getElementById('screen-result').style.display = 'none';
   document.getElementById('screen-intro').style.display = 'block';
+  updateDateLine();   // garante que a data exibida está correta ao voltar
+  loadSubjectData();  // sincroniza btn-start com o estado atual
+}
+
+// ─── LEGADO: switchSubject mantido por compatibilidade com botão no HTML ───
+function switchSubject() {
+  currentSubjectIdx = (currentSubjectIdx + 1) % SUBJECTS.length;
+  localStorage.setItem('sd_subject', currentSubjectIdx);
+  // Limpa progresso parcial da matéria anterior e reseta estado
+  clearProgress();
+  current = 0;
+  answers = [];
+  sessionStreak = 0;
+  quizStartDate = null;
+  buildSubjectTabs();
+  applySubjectTheme(currentSubjectIdx, true);
+  loadSubjectData();
 }
 
 init();
