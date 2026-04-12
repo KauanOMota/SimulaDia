@@ -85,8 +85,27 @@ function getBank() {
 // Resultado: banco de 80 questões → 8 dias sem repetição, depois recomeça.
 // Banco de 100 → 10 dias. Completamente sem estado — sem localStorage.
 
-// Época fixa de referência (não muda nunca)
-const EPOCH = new Date('2025-01-01T00:00:00Z').getTime();
+// Época fixa — dias locais desde 2025-01-01
+const EPOCH_DATE = '2025-01-01';
+
+// Data local YYYY-MM-DD — nunca UTC, dia vira à meia-noite do dispositivo
+function getLocalDateString(date) {
+  const d = date || new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Dias desde EPOCH_DATE em horário local
+function getDayIndex() {
+  const [ey, em, ed] = EPOCH_DATE.split('-').map(Number);
+  const today = getLocalDateString();
+  const [ty, tm, td] = today.split('-').map(Number);
+  const epochMs = new Date(ey, em - 1, ed).getTime();
+  const todayMs = new Date(ty, tm - 1, td).getTime();
+  return Math.floor((todayMs - epochMs) / 86400000);
+}
 
 // LCG determinístico — seed numérico → permutação estável
 function seededShuffle(arr, seed) {
