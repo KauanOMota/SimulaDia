@@ -86,27 +86,7 @@ function getBank() {
 // Banco de 100 → 10 dias. Completamente sem estado — sem localStorage.
 
 // Época fixa de referência (não muda nunca)
-// Época fixa — dias locais desde 2025-01-01
-const EPOCH_DATE = '2025-01-01';
-
-// Data local YYYY-MM-DD (nunca UTC — dia vira à meia-noite do dispositivo)
-function getLocalDateString(date) {
-  const d = date || new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-// Dias desde EPOCH_DATE em horário local
-function getDayIndex() {
-  const [ey, em, ed] = EPOCH_DATE.split('-').map(Number);
-  const today = getLocalDateString();
-  const [ty, tm, td] = today.split('-').map(Number);
-  const epochMs = new Date(ey, em - 1, ed).getTime();
-  const todayMs = new Date(ty, tm - 1, td).getTime();
-  return Math.floor((todayMs - epochMs) / 86400000);
-}
+const EPOCH = new Date('2025-01-01T00:00:00Z').getTime();
 
 // LCG determinístico — seed numérico → permutação estável
 function seededShuffle(arr, seed) {
@@ -389,8 +369,23 @@ function initCountdown() {
   setInterval(updateCountdown, 1000);
 }
 
+const STORAGE_VERSION = 'v2'; // incrementar aqui invalida todo storage legado
+const STORAGE_VER_KEY = 'sd_storage_ver';
+
 function purgeOldStorage() {
-  // Remove resultados e progressos de dias anteriores do localStorage
+  // Se a versão mudou (ou nunca foi definida), apaga tudo e marca versão nova.
+  // Isso limpa dados corrompidos de versões antigas (ex: datas salvas em UTC).
+  const storedVer = localStorage.getItem(STORAGE_VER_KEY);
+  if (storedVer !== STORAGE_VERSION) {
+    const preserve = ['sd_subject'];
+    const allKeys = [];
+    for (let i = 0; i < localStorage.length; i++) allKeys.push(localStorage.key(i));
+    allKeys.forEach(k => { if (k && !preserve.includes(k)) localStorage.removeItem(k); });
+    localStorage.setItem(STORAGE_VER_KEY, STORAGE_VERSION);
+    return;
+  }
+
+  // Remove resultados e progressos de dias anteriores
   const today = getLocalDateString();
   const keysToDelete = [];
   for (let i = 0; i < localStorage.length; i++) {
@@ -425,7 +420,7 @@ function init() {
     if (today === lastKnownDate) return;
     lastKnownDate = today;
 
-    // Dia virou: purga storage antigo, reseta estado em memória e volta à intro
+    // Dia virou: purga storage antigo, reseta estado e volta à intro
     purgeOldStorage();
     quizStartDate = null;
     current = 0;
@@ -435,7 +430,6 @@ function init() {
     updateDateLine();
     updateCountdown();
 
-    // Independente da tela atual, volta para intro com simulado novo
     document.getElementById('screen-quiz').style.display = 'none';
     document.getElementById('screen-result').style.display = 'none';
     document.getElementById('screen-intro').style.display = 'block';
