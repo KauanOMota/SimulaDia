@@ -85,8 +85,30 @@ function getBank() {
 // Resultado: banco de 80 questões → 8 dias sem repetição, depois recomeça.
 // Banco de 100 → 10 dias. Completamente sem estado — sem localStorage.
 
-// Época fixa de referência (não muda nunca)
-const EPOCH = new Date('2025-01-01T00:00:00Z').getTime();
+// Época fixa de referência — em dias locais desde 2025-01-01
+// Usamos data local (não UTC) para que o dia vire à meia-noite do dispositivo,
+// garantindo consistência com o cronômetro e com as storage keys.
+const EPOCH_DATE = '2025-01-01';
+
+// Retorna a data local no formato YYYY-MM-DD (sem conversão UTC)
+function getLocalDateString(date) {
+  const d = date || new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Número de dias desde EPOCH_DATE, calculado em tempo local
+function getDayIndex() {
+  const today = getLocalDateString();
+  const [ey, em, ed] = EPOCH_DATE.split('-').map(Number);
+  const [ty, tm, td] = today.split('-').map(Number);
+  // Diferença em dias usando Date local (respeita horário do dispositivo)
+  const epochMs = new Date(ey, em - 1, ed).getTime();
+  const todayMs = new Date(ty, tm - 1, td).getTime();
+  return Math.floor((todayMs - epochMs) / 86400000);
+}
 
 // LCG determinístico — seed numérico → permutação estável
 function seededShuffle(arr, seed) {
@@ -109,12 +131,6 @@ function getFixedPermutation(bankSize) {
   // Seed primo arbitrário, único por matéria e tamanho do banco
   const seed = 0x5EED0000 ^ (subjectIdx * 0x9E3779B9) ^ (bankSize * 0x6B43A9);
   return seededShuffle([...Array(bankSize).keys()], seed);
-}
-
-// Número de dias completos desde a época, em UTC — igual em todo o mundo
-function getDayIndex() {
-  const nowUTC = Date.now();
-  return Math.floor((nowUTC - EPOCH) / 86400000);
 }
 
 function getDailyQuestions() {
@@ -149,11 +165,11 @@ function getDailyQuestions() {
 // Sempre usam a data real do dia — quizStartDate nunca influencia as chaves de storage
 function getTodayKey() {
   const key = SUBJECTS[currentSubjectIdx].key;
-  return `sd_result_${key}_` + new Date().toISOString().slice(0, 10);
+  return `sd_result_${key}_` + getLocalDateString();
 }
 function getProgressKey() {
   const key = SUBJECTS[currentSubjectIdx].key;
-  return `sd_progress_${key}_` + new Date().toISOString().slice(0, 10);
+  return `sd_progress_${key}_` + getLocalDateString();
 }
 function getStreakKey() {
   return `sd_streak_${SUBJECTS[currentSubjectIdx].key}`;
@@ -201,13 +217,13 @@ function clearProgress() {
 
 // ─── STREAK (por matéria) ───
 function getStreak() {
-  const today = new Date().toISOString().slice(0, 10); // streak sempre usa data real
+  const today = getLocalDateString(); // streak sempre usa data real
   const data = JSON.parse(localStorage.getItem(getStreakKey()) || '{}');
   return { streak: data.streak || 0, last: data.last || null, today };
 }
 function updateStreak() {
   const { streak, last, today } = getStreak();
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return getLocalDateString(d); })();
   let newStreak;
   if (last === today) {
     newStreak = streak;
@@ -227,7 +243,7 @@ let quizStartDate = null;
 function getSessionDate() {
   // Durante um simulado ativo, usa a data em que ele começou
   // Na tela inicial (fora de um simulado), usa a data atual
-  return quizStartDate || new Date().toISOString().slice(0, 10);
+  return quizStartDate || getLocalDateString();
 }
 
 // ─── TABS DE MATÉRIA ───
@@ -377,7 +393,7 @@ function initCountdown() {
 
 function purgeOldStorage() {
   // Remove resultados e progressos de dias anteriores do localStorage
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
   const keysToDelete = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
@@ -404,10 +420,10 @@ function init() {
   document.getElementById('screen-intro').style.display = 'block';
 
   // Detecta virada de dia tanto por intervalo quanto por retorno de sleep (visibilitychange)
-  let lastKnownDate = new Date().toISOString().slice(0, 10);
+  let lastKnownDate = getLocalDateString();
 
   function checkDayRollover() {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateString();
     if (today === lastKnownDate) return;
     lastKnownDate = today;
 
@@ -429,7 +445,7 @@ function init() {
 }
 
 function startQuiz() {
-  quizStartDate = new Date().toISOString().slice(0, 10);
+  quizStartDate = getLocalDateString();
   questions = getDailyQuestions();
   current = 0;
   answers = [];
@@ -449,7 +465,7 @@ function resumeQuiz() {
   const progress = loadProgress();
   if (!progress) { startQuiz(); return; }
 
-  quizStartDate  = progress.quizStartDate || new Date().toISOString().slice(0, 10);
+  quizStartDate  = progress.quizStartDate || getLocalDateString();
   questions      = progress.questions;
   current        = progress.current;
   answers        = progress.answers;
