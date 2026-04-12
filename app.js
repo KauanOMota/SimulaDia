@@ -461,6 +461,18 @@ function init() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') checkDayRollover();
   });
+
+  // Helper de teste: simula virada de dia sem esperar
+  // Uso no console: _testNextDay()
+  window._testNextDay = () => {
+    const _orig = getLocalDateString;
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    const tomorrow = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    getLocalDateString = () => tomorrow;
+    checkDayRollover();
+    console.log('%c✓ Dia simulado para ' + tomorrow, 'color:#34D399;font-weight:bold');
+    setTimeout(() => { getLocalDateString = _orig; }, 5000);
+  };
 }
 
 function startQuiz() {
