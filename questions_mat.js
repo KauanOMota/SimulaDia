@@ -121,7 +121,7 @@ window.BANK_MAT = [
   {
     text: "Em uma PA com primeiro termo 5 e razão 3, o 8° termo vale:",
     opts: ["24","26","28","30","32"],
-    ans: 3, // a8 = 5 + 7·3 = 26... a8 = 5+21 = 26? — 5+7×3=5+21=26, índice 1
+    ans: 1, // a8 = 5 + 7·3 = 26... a8 = 5+21 = 26? — 5+7×3=5+21=26, índice 1
     // recalc: opts[0]=24, opts[1]=26, opts[2]=28, opts[3]=30, opts[4]=32 → a8=26 → ans=1
     source: "ENEM 2020",
     expl: "a₈ = 5 + (8−1)·3 = 5 + 21 = 26."
@@ -2155,9 +2155,6 @@ window.BANK_MAT = [
     expl: "Se A ⊂ B e B ⊂ A simultaneamente, então A = B."
   }
 ];
-
-// Fix questão 17 (índice 16)
-BANK[16].ans = 1;
 
 // ─── BANCO EXPANDIDO: 301 questões no total ───
 
