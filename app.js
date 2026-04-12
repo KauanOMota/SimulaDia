@@ -85,12 +85,11 @@ function getBank() {
 // Resultado: banco de 80 questões → 8 dias sem repetição, depois recomeça.
 // Banco de 100 → 10 dias. Completamente sem estado — sem localStorage.
 
-// Época fixa de referência — em dias locais desde 2025-01-01
-// Usamos data local (não UTC) para que o dia vire à meia-noite do dispositivo,
-// garantindo consistência com o cronômetro e com as storage keys.
+// Época fixa de referência (não muda nunca)
+// Época fixa — dias locais desde 2025-01-01
 const EPOCH_DATE = '2025-01-01';
 
-// Retorna a data local no formato YYYY-MM-DD (sem conversão UTC)
+// Data local YYYY-MM-DD (nunca UTC — dia vira à meia-noite do dispositivo)
 function getLocalDateString(date) {
   const d = date || new Date();
   const y = d.getFullYear();
@@ -99,12 +98,11 @@ function getLocalDateString(date) {
   return `${y}-${m}-${day}`;
 }
 
-// Número de dias desde EPOCH_DATE, calculado em tempo local
+// Dias desde EPOCH_DATE em horário local
 function getDayIndex() {
-  const today = getLocalDateString();
   const [ey, em, ed] = EPOCH_DATE.split('-').map(Number);
+  const today = getLocalDateString();
   const [ty, tm, td] = today.split('-').map(Number);
-  // Diferença em dias usando Date local (respeita horário do dispositivo)
   const epochMs = new Date(ey, em - 1, ed).getTime();
   const todayMs = new Date(ty, tm - 1, td).getTime();
   return Math.floor((todayMs - epochMs) / 86400000);
@@ -223,7 +221,7 @@ function getStreak() {
 }
 function updateStreak() {
   const { streak, last, today } = getStreak();
-  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return getLocalDateString(d); })();
+  const yesterday = getLocalDateString(new Date(new Date().setDate(new Date().getDate() - 1)));
   let newStreak;
   if (last === today) {
     newStreak = streak;
@@ -427,13 +425,21 @@ function init() {
     if (today === lastKnownDate) return;
     lastKnownDate = today;
 
-    // Dia virou: zera quizStartDate e atualiza tela inicial se visível
+    // Dia virou: purga storage antigo, reseta estado em memória e volta à intro
+    purgeOldStorage();
     quizStartDate = null;
+    current = 0;
+    answers = [];
+    chosenAnswers = [];
+    sessionStreak = 0;
     updateDateLine();
-    updateCountdown(); // atualiza cronômetro imediatamente
+    updateCountdown();
 
-    const onIntro = document.getElementById('screen-intro').style.display !== 'none';
-    if (onIntro) loadSubjectData();
+    // Independente da tela atual, volta para intro com simulado novo
+    document.getElementById('screen-quiz').style.display = 'none';
+    document.getElementById('screen-result').style.display = 'none';
+    document.getElementById('screen-intro').style.display = 'block';
+    loadSubjectData();
   }
 
   setInterval(checkDayRollover, 60_000);
