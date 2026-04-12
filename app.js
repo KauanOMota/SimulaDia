@@ -464,14 +464,27 @@ function init() {
 
   // Helper de teste: simula virada de dia sem esperar
   // Uso no console: _testNextDay()
+  // _testReset() volta para hoje
   window._testNextDay = () => {
-    const _orig = getLocalDateString;
     const d = new Date(); d.setDate(d.getDate() + 1);
     const tomorrow = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    // Mantém o mock permanente até _testReset() — necessário para que
+    // purgeOldStorage e getDailyQuestions enxerguem a mesma data nova
     getLocalDateString = () => tomorrow;
     checkDayRollover();
-    console.log('%c✓ Dia simulado para ' + tomorrow, 'color:#34D399;font-weight:bold');
-    setTimeout(() => { getLocalDateString = _orig; }, 5000);
+    console.log('%c✓ Dia simulado para ' + tomorrow + ' — rode _testReset() para voltar ao normal', 'color:#34D399;font-weight:bold');
+  };
+  window._testReset = () => {
+    // Restaura getLocalDateString original (definida no escopo do módulo)
+    getLocalDateString = function(date) {
+      const d = date || new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    };
+    checkDayRollover();
+    console.log('%c✓ Voltou para hoje: ' + getLocalDateString(), 'color:#818CF8;font-weight:bold');
   };
 }
 
