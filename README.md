@@ -66,6 +66,8 @@ node ferramentas/validar-bancos.js
 
 O script aponta ids e enunciados repetidos, alternativas iguais, gabaritos inválidos e a concentração de respostas numa mesma letra.
 
+**Antes de publicar**, troque o valor de `?v=` nas linhas de CSS e JS do `index.html` (por exemplo, pela data do dia). O GitHub Pages deixa os navegadores guardarem cada arquivo por 10 minutos. Sem trocar a versão, um visitante pode receber o HTML novo com o JavaScript antigo, e o site quebra até o cache expirar.
+
 ## Rodar localmente
 
 Basta abrir o `index.html` no navegador. Também dá para servir a pasta, por exemplo com `npx serve .`.
