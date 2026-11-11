@@ -3,104 +3,118 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SimulaDia</title>
+<title>SimulaDia — simulado diário para o ENEM</title>
+<meta name="description" content="Um simulado novo por dia, com 10 questões no estilo do ENEM e gabarito comentado. Matemática, Linguagens, Ciências Humanas e Ciências da Natureza. Sem cadastro.">
+<meta name="theme-color" content="#0A0A0F">
+<meta property="og:title" content="SimulaDia — simulado diário para o ENEM">
+<meta property="og:description" content="10 questões por dia, gabarito comentado, treino por tema e acompanhamento do seu desempenho.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230A0A0F'/%3E%3Ctext x='32' y='44' font-family='Arial,sans-serif' font-size='34' font-weight='800' text-anchor='middle' fill='%238B85FF'%3ES%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="subject-mat">
 <div class="wrap">
 
-  <!-- TOP BAR -->
-  <div class="top-bar">
-    <div class="logo" onclick="goHome()" style="cursor:pointer;">Simula<span>Dia</span></div>
-    <div class="streak-badge" id="streak-badge" style="display:none;">
-      🔥 <span id="streak-count">0</span> dia(s) seguidos
+  <!-- ─── BARRA SUPERIOR ─── -->
+  <header class="top-bar">
+    <button class="logo" id="logo" type="button" aria-label="SimulaDia — voltar ao início">Simula<span>Dia</span></button>
+    <div class="top-actions">
+      <div class="streak-badge" id="streak-badge" hidden>
+        <span aria-hidden="true">🔥</span> <span id="streak-count">0</span>&nbsp;<span id="streak-label">dias seguidos</span>
+      </div>
+      <button class="icon-btn" id="btn-stats" type="button" aria-label="Meu desempenho" title="Meu desempenho">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+      </button>
     </div>
-  </div>
+  </header>
 
-  <!-- ─── INTRO ─── -->
-  <div id="screen-intro">
-    <div class="hero fade-in">
-
-      <!-- TABS DE MATÉRIA -->
+  <!-- ─── INÍCIO ─── -->
+  <main id="screen-intro" class="screen">
+    <div class="hero">
       <div class="subject-tabs-wrap">
-        <div class="subject-tabs" id="subject-tabs">
-          <!-- gerado por JS -->
-        </div>
+        <div class="subject-tabs" id="subject-tabs" role="tablist" aria-label="Área do conhecimento"></div>
       </div>
-      <div class="subject-name-line" id="subject-name-line">Matemática</div>
-
-      <!-- INDICADOR legado (mantido para compatibilidade com applySubjectTheme) -->
-      <div class="subject-switcher" id="subject-switcher" style="display:none;">
-        <div class="subject-indicator" id="subject-indicator">
-          <span class="subject-dot" id="subject-dot"></span>
-          <span class="subject-label" id="subject-label"></span>
-        </div>
-      </div>
+      <div class="subject-name-line" id="subject-name-line"></div>
 
       <h1 id="hero-title">O simulado<br>de <em>hoje</em> está pronto.</h1>
       <div class="hero-desc-wrap" id="hero-desc-wrap">
-        <p id="hero-desc">10 questões reais. Sem cadastro. Novo simulado todo dia.</p>
+        <p id="hero-desc"></p>
       </div>
 
-      <div class="info-chips">
-        <div class="chip"><span class="dot"></span> Gabarito imediato</div>
-        <div class="chip"><span class="dot"></span> Renova todo dia</div>
-        <div class="chip"><span class="dot"></span> Questões reais</div>
-      </div>
+      <div class="info-chips" id="info-chips"></div>
 
       <div class="date-line" id="date-line"></div>
 
-      <button class="btn-start" id="btn-start">
-        Começar simulado <span class="arrow">→</span>
-      </button>
+      <button class="btn-start" id="btn-start" type="button">Começar simulado <span class="arrow">→</span></button>
 
       <div class="countdown-timer" id="countdown-timer">
         <span class="cd-label">Novo simulado em</span>
         <span class="cd-time">00:00:00</span>
       </div>
     </div>
-  </div>
 
-  <!-- ─── QUIZ ─── -->
-  <div id="screen-quiz">
+    <nav class="more-list" aria-label="Outras formas de estudar">
+      <button class="more-row" id="btn-treino" type="button">
+        <span class="more-text">
+          <span class="more-title">Treinar por tema</span>
+          <span class="more-sub" id="treino-sub">Escolha a disciplina e o assunto</span>
+        </span>
+        <span class="more-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="more-row" id="btn-erros" type="button">
+        <span class="more-text">
+          <span class="more-title">Revisar erros</span>
+          <span class="more-sub" id="erros-sub">Nenhuma questão para revisar</span>
+        </span>
+        <span class="more-arrow" aria-hidden="true">→</span>
+      </button>
+    </nav>
+  </main>
+
+  <!-- ─── QUESTÕES ─── -->
+  <main id="screen-quiz" class="screen" hidden>
     <div class="quiz-header">
       <div class="q-counter" id="q-counter">Questão 1 de 10</div>
-      <div class="session-streak" id="session-streak">
-        <span class="streak-fire">🔥</span>
-        <span id="session-streak-count">0</span> seguidas
+      <div class="quiz-header-right">
+        <div class="session-streak" id="session-streak">
+          <span class="streak-fire" aria-hidden="true">🔥</span>
+          <span id="session-streak-count">0</span>&nbsp;seguidas
+        </div>
+        <div class="q-timer" id="q-timer" aria-label="Tempo decorrido">00:00</div>
       </div>
     </div>
-    <div class="progress-dots" id="progress-dots"></div>
-    <div class="progress-track">
-      <div class="progress-fill" id="prog" style="width:0%"></div>
-    </div>
+    <div class="quiz-mode-line" id="quiz-mode-line" hidden></div>
+    <div class="progress-dots" id="progress-dots" aria-hidden="true"></div>
 
     <div class="q-area fade-in" id="q-area">
       <div class="q-source-tag" id="q-source"></div>
       <div class="q-text" id="q-text"></div>
     </div>
 
-    <div class="options" id="options"></div>
+    <div class="options" id="options" role="group" aria-label="Alternativas"></div>
 
-    <div class="feedback-box" id="feedback-box">
+    <div class="feedback-box" id="feedback-box" aria-live="polite">
       <div class="feedback-label" id="feedback-label"></div>
-      <div id="feedback-answer"></div>
+      <div class="feedback-answer" id="feedback-answer"></div>
       <div class="feedback-expl" id="feedback-expl"></div>
     </div>
 
-    <button class="btn-next" id="btn-next" onclick="nextQ()">Próxima questão →</button>
-  </div>
+    <button class="btn-next" id="btn-next" type="button">Próxima questão →</button>
+    <p class="kbd-hint" id="kbd-hint">Atalhos: teclas <kbd>A</kbd>–<kbd>E</kbd> ou <kbd>1</kbd>–<kbd>5</kbd> para responder, <kbd>Enter</kbd> para avançar.</p>
+  </main>
 
-  <!-- ─── RESULT ─── -->
-  <div id="screen-result">
+  <!-- ─── RESULTADO ─── -->
+  <main id="screen-result" class="screen" hidden>
     <div class="result-hero fade-in">
       <div class="result-label" id="result-label">Simulado de hoje — concluído</div>
       <div class="result-score">
-        <span id="final-score">0</span><span class="denom">/10</span>
+        <span id="final-score">0</span><span class="denom" id="final-denom">/10</span>
       </div>
       <div class="result-msg" id="result-msg"></div>
+      <div class="result-time" id="result-time"></div>
     </div>
 
     <div class="stat-row">
@@ -118,19 +132,78 @@
       </div>
     </div>
 
-    <div class="review-title">Revisão das questões</div>
+    <section class="result-block" id="result-disc-block">
+      <h2 class="section-title">Por disciplina</h2>
+      <div id="result-disc"></div>
+    </section>
+
+    <h2 class="section-title">Revisão das questões</h2>
     <div id="review"></div>
 
-    <button class="btn-share" id="btn-share" onclick="shareResult()">↗ Compartilhar resultado</button>
-    <button class="btn-redo">← Voltar ao início</button>
-  </div>
+    <div class="result-actions">
+      <button class="btn-share" id="btn-share" type="button">↗ Compartilhar resultado</button>
+      <button class="btn-secondary" id="btn-again" type="button" hidden>Treinar de novo</button>
+      <button class="btn-redo" id="btn-redo" type="button">← Voltar ao início</button>
+    </div>
+  </main>
 
+  <!-- ─── TREINO POR TEMA ─── -->
+  <main id="screen-treino" class="screen" hidden>
+    <div class="page-head">
+      <button class="back-link" type="button" data-go-home>← Início</button>
+      <h1 class="page-title">Treinar por tema</h1>
+      <p class="page-desc" id="treino-desc"></p>
+    </div>
+    <button class="treino-all" id="treino-all" type="button"></button>
+    <div id="treino-list" class="treino-list"></div>
+    <p class="page-note">O treino não conta para a sequência de dias, mas entra nas suas estatísticas por tema. Questões erradas vão para a revisão de erros.</p>
+  </main>
+
+  <!-- ─── DESEMPENHO ─── -->
+  <main id="screen-stats" class="screen" hidden>
+    <div class="page-head">
+      <button class="back-link" type="button" data-go-home>← Início</button>
+      <h1 class="page-title">Seu desempenho</h1>
+      <p class="page-desc">Os dados ficam salvos só neste navegador.</p>
+    </div>
+
+    <div class="stats-overview" id="stats-overview"></div>
+
+    <div class="subject-tabs-wrap stats-tabs-wrap">
+      <div class="subject-tabs" id="stats-tabs" role="tablist" aria-label="Área do conhecimento"></div>
+    </div>
+
+    <section class="stats-block">
+      <h2 class="section-title">Últimos 14 dias</h2>
+      <div class="days-chart" id="days-chart"></div>
+      <p class="chart-caption" id="days-caption"></p>
+    </section>
+
+    <section class="stats-block">
+      <h2 class="section-title">Acertos por disciplina</h2>
+      <div id="disc-chart"></div>
+    </section>
+
+    <section class="stats-block">
+      <h2 class="section-title">Temas para reforçar</h2>
+      <div id="weak-list"></div>
+    </section>
+
+    <button class="btn-danger-link" id="btn-reset" type="button">Apagar meu histórico neste navegador</button>
+  </main>
+
+  <div class="chart-tip" id="chart-tip" role="tooltip" hidden></div>
+
+  <footer class="site-footer">
+    <p>Questões autorais no estilo do ENEM, com gabarito comentado. Não são questões oficiais de provas anteriores.</p>
+  </footer>
 </div>
 
-<!-- Bancos de questões por matéria -->
-<!-- Futuramente: adicionar questions_lin.js, questions_hum.js, questions_nat.js -->
-<script src="questions_mat.js"></script>
-<script src="questions_ling.js"></script>
+<!-- Bancos de questões (um arquivo por área) -->
+<script src="questoes/matematica.js"></script>
+<script src="questoes/linguagens.js"></script>
+<script src="questoes/humanas.js"></script>
+<script src="questoes/natureza.js"></script>
 
 <script src="app.js"></script>
 </body>
